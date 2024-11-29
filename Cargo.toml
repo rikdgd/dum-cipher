@@ -1,0 +1,10 @@
+[package]
+name = "dum-cipher"
+version = "0.1.0"
+edition = "2021"
+description = "DUM-cipher stands for: Don't Use Me - cipher. This is because you should never use this cipher!"
+
+[dependencies]
+sha2 = "0.10.8"
+rand = "0.8.5"
+pbkdf2 = "0.12.2"

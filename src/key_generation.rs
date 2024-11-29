@@ -5,6 +5,7 @@ use rand::Rng;
 
 const ITERATIONS: u32 = 600_000;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct KeyDetails {
     pub password: String,
     pub key: [u8; 32],
