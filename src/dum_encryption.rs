@@ -214,7 +214,7 @@ mod test {
     use crate::dum_encryption;
     use crate::dum_encryption::xor_data;
     use crate::key_generation::{derive_key_from_passphrase};
-    use super::{MIRROR_CHUNK_SIZE, ROTATE_CHUNK_SIZE};
+    use super::ROTATE_CHUNK_SIZE;
     
     #[test]
     fn xor_data_test() {
