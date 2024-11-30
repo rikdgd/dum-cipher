@@ -1,12 +1,12 @@
-use std::io::Result as StdResult;
+use std::io::Result as IoResult;
 use crate::key_generation::{derive_key_from_passphrase, KeyDetails};
 
 
-const ROTATE_CHUNK_SIZE: usize = 25;  // for 5x5 matrix
-const MIRROR_CHUNK_SIZE: usize = 9;
+const ROTATE_CHUNK_SIZE: usize = 25;    // 5x5 matrix
+const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 
-pub fn encrypt(mut data: Vec<u8>, password: &str) -> StdResult<(Vec<u8>, KeyDetails)> {
+pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<(Vec<u8>, KeyDetails)> {
     let key_details = derive_key_from_passphrase(password, None);
     
     data = xor_data(data, &key_details)?;
@@ -19,7 +19,7 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> StdResult<(Vec<u8>, KeyDeta
     Ok((data, key_details))
 }
 
-pub fn decrypt(mut data: Vec<u8>, password: &str, salt: [u8; 16]) -> StdResult<Vec<u8>> {
+pub fn decrypt(mut data: Vec<u8>, password: &str, salt: [u8; 16]) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, Some(salt));
     
     data = {
@@ -31,7 +31,7 @@ pub fn decrypt(mut data: Vec<u8>, password: &str, salt: [u8; 16]) -> StdResult<V
 }
 
 
-fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> StdResult<Vec<u8>> {
+fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     let mut new_data = Vec::new();
 
     for chunk in data.chunks(key_details.key.len()) {
@@ -195,7 +195,7 @@ fn mirror_chunk(chunk: [u8; MIRROR_CHUNK_SIZE]) -> [u8; MIRROR_CHUNK_SIZE] {
 }
 
 
-fn xor_chunk(chunk: &[u8], key_details: &KeyDetails) -> StdResult<Vec<u8>> {
+fn xor_chunk(chunk: &[u8], key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     let mut result: Vec<u8> = Vec::new();
 
     for i in 0..chunk.len() {
