@@ -3,17 +3,29 @@ mod key_generation;
 mod dum_file_encryptor;
 mod authentication;
 
+use std::env;
+use std::path::Path;
+
 fn main() -> std::io::Result<()> {
-    let message = b"Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!".to_vec();
-    let password = "welcome123".to_string();
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 4 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid arguments provided"
+        ));
+    }
     
-    let (encrypted_data, key_details) = dum_encryption::encrypt(message, &password)?;
-    let encrypted_message = String::from_utf8_lossy(&encrypted_data);
-    println!("encrypted message:\n{encrypted_message}");
+    let action = String::from(&args[1]);
+    let action = action.as_str();
+    let file_path = Path::new(&args[2]);
+    let password = String::from(&args[3]);
     
-    let decrypted_data = dum_encryption::decrypt(encrypted_data, &password, key_details.salt)?;
-    let decrypted_message = String::from_utf8_lossy(&decrypted_data);
-    println!("decrypted message:\n{decrypted_message}");
+    let encryptor = dum_file_encryptor::DumFileEncryptor::new(file_path)?;
+    match action {
+        "encrypt" => encryptor.encrypt_file(&password)?,
+        "decrypt" => encryptor.decrypt_file(&password)?,
+        _ => panic!("Could not understand requested action"),
+    }
     
     Ok(())
 }
