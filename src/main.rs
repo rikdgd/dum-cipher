@@ -1,5 +1,6 @@
 mod dum_encryption;
 mod key_generation;
+mod dum_file_encryptor;
 
 fn main() -> std::io::Result<()> {
     let message = b"Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!Hello world!".to_vec();
