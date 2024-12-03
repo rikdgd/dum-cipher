@@ -8,3 +8,4 @@ description = "DUM-cipher stands for: Don't Use Me - cipher. This is because you
 sha2 = "0.10.8"
 rand = "0.8.5"
 pbkdf2 = "0.12.2"
+hmac = "0.12.1"
