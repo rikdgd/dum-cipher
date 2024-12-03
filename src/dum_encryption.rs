@@ -55,7 +55,7 @@ pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     // recalculate the MAC to verify both are correct. 
     let new_mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
     
-    // Check if both MAC's are the same
+    // Check if both MACs are the same
     for i in 0..32 {
         if stored_mac[i] != new_mac[i] {
             return Err(std::io::Error::new(
