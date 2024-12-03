@@ -20,9 +20,6 @@ pub fn generate_MAC(data: &[u8], key: &[u8]) -> Option<[u8; 32]> {
     let res = mac.finalize();
 
     let code_bytes = res.into_bytes().to_vec();
-    println!("MAC: {:?}", code_bytes);
-    println!("MAC length: {}", code_bytes.len());
-
     
     if code_bytes.len() == 32 {
         let mut mac_arr = [0u8; 32];

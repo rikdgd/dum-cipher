@@ -7,7 +7,7 @@ const ROTATE_CHUNK_SIZE: usize = 25;    // 5x5 matrix
 const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 
-pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<(Vec<u8>, KeyDetails)> {
+pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, None);
     let mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
     
@@ -18,19 +18,33 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<(Vec<u8>, KeyDetai
         mirror_data(rotated_data)
     };
     
+    // append salt to encrypted data
+    for byte in key_details.salt {
+        data.push(byte);
+    }
+    
     // append MAC to encrypted data
     for byte in mac {
         data.push(byte);
     }
     
-    Ok((data, key_details))
+    Ok(data)
 }
 
-pub fn decrypt(mut data: Vec<u8>, password: &str, salt: [u8; 16]) -> IoResult<Vec<u8>> {
-    let key_details = derive_key_from_passphrase(password, Some(salt));
+pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     
     // Get the MAC from last 32 bytes of encrypted data
     let stored_mac = data.split_off(data.len() - 32);
+    
+    // Get salt from last 16 bytes
+    let salt_vec = data.split_off(data.len() - 16);
+    let mut salt = [0u8; 16];
+    for (i, byte) in salt_vec.iter().enumerate() {
+        salt[i] = byte.clone();
+    }
+
+    let key_details = derive_key_from_passphrase(password, Some(salt));
+    
     
     data = {
         let mirrored_data = mirror_data(data);
@@ -269,8 +283,8 @@ mod test {
         let input = b"Lorem ipsum dolor sit amet, consectetur adipiscing".to_vec();
         let password = String::from("password123");
 
-        let (encrypted, key_details) = dum_encryption::encrypt(input.clone(), &password).unwrap();
-        let decrypted = dum_encryption::decrypt(encrypted.clone(), &password, key_details.salt).unwrap();
+        let encrypted = dum_encryption::encrypt(input.clone(), &password).unwrap();
+        let decrypted = dum_encryption::decrypt(encrypted.clone(), &password).unwrap();
 
         assert_eq!(input, decrypted);
     }

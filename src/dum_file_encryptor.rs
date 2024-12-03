@@ -3,6 +3,7 @@ use std::path::Path;
 use std::io::{Read, Result as IoResult, Write};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
+use crate::dum_encryption;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DumFileEncryptor<'a> {
@@ -25,7 +26,10 @@ impl<'a> DumFileEncryptor<'a> {
         }
     }
     
-    pub fn encrypt_file(password: &str) -> IoResult<()> {
+    pub fn encrypt_file(&self, password: &str) -> IoResult<()> {
+        let file_bytes = self.get_file_bytes()?;
+        let data = dum_encryption::encrypt(file_bytes, password)?;
+        
         todo!()
     }
     
