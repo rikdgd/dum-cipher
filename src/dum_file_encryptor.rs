@@ -11,9 +11,7 @@ pub struct DumFileEncryptor<'a> {
 }
 
 impl<'a> DumFileEncryptor<'a> {
-    pub fn new(path: &'a str) -> IoResult<Self> {
-        let path = Path::new(path);
-        
+    pub fn new(path: &'a Path) -> IoResult<Self> {
         if path.is_file() {
             Ok(Self {
                 file_path: path,
@@ -28,16 +26,23 @@ impl<'a> DumFileEncryptor<'a> {
     
     pub fn encrypt_file(&self, password: &str) -> IoResult<()> {
         let file_bytes = self.get_file_bytes()?;
-        let data = dum_encryption::encrypt(file_bytes, password)?;
+        let ciphertext = dum_encryption::encrypt(file_bytes, password)?;
         
-        todo!()
+        self.write_bytes_to_file(&ciphertext)?;
+        
+        Ok(())
     }
     
-    pub fn decrypt_file(password: &str) -> IoResult<()> {
-        todo!()
+    pub fn decrypt_file(&self, password: &str) -> IoResult<()> {
+        let file_bytes = self.get_file_bytes()?;
+        let plaintext = dum_encryption::decrypt(file_bytes, password)?;
+
+        self.write_bytes_to_file(&plaintext)?;
+
+        Ok(())
     }
     
-    fn get_file_bytes(&self) -> IoResult<Vec<u8>> {
+    pub fn get_file_bytes(&self) -> IoResult<Vec<u8>> {
         let mut content_buffer = Vec::new();
         let mut file = OpenOptions::new()
             .read(true)
@@ -54,7 +59,7 @@ impl<'a> DumFileEncryptor<'a> {
     /// 
     /// ## parameters:
     /// * `bytes` - The bytes that will be written to the file.
-    fn write_bytes_to_file(&self, bytes: Vec<u8>) -> IoResult<()> {
+    fn write_bytes_to_file(&self, bytes: &[u8]) -> IoResult<()> {
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -62,7 +67,7 @@ impl<'a> DumFileEncryptor<'a> {
             .open(self.file_path)?;
         
         file.set_len(0)?;
-        file.write_all(&bytes)?;
+        file.write_all(bytes)?;
         file.flush()?;
         
         Ok(())
