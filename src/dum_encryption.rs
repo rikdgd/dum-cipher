@@ -35,7 +35,8 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     let mut new_data = Vec::new();
 
     for chunk in data.chunks(key_details.key.len()) {
-        let xor_chunk = xor_chunk(chunk, key_details)?;
+        let xor_chunk = xor_chunk(chunk, key_details)
+            .expect("chunk and key length were not the same");
         for byte in xor_chunk {
             new_data.push(byte);
         }
@@ -195,17 +196,17 @@ fn mirror_chunk(chunk: [u8; MIRROR_CHUNK_SIZE]) -> [u8; MIRROR_CHUNK_SIZE] {
 }
 
 
-fn xor_chunk(chunk: &[u8], key_details: &KeyDetails) -> IoResult<Vec<u8>> {
+fn xor_chunk(chunk: &[u8], key_details: &KeyDetails) -> Option<Vec<u8>> {
     let mut result: Vec<u8> = Vec::new();
 
     for i in 0..chunk.len() {
-        let data_byte = chunk.get(i).unwrap();
-        let key_byte = key_details.key.get(i).unwrap();
+        let data_byte = chunk.get(i)?;
+        let key_byte = key_details.key.get(i)?;
 
         result.push(data_byte ^ key_byte);
     }
 
-    Ok(result)
+    Some(result)
 }
 
 
