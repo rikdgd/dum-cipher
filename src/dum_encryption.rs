@@ -1,5 +1,6 @@
-use std::io::Result as IoResult;
+use std::io::{ErrorKind, Result as IoResult};
 use crate::key_generation::{derive_key_from_passphrase, KeyDetails};
+use crate::authentication;
 
 
 const ROTATE_CHUNK_SIZE: usize = 25;    // 5x5 matrix
@@ -8,13 +9,19 @@ const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<(Vec<u8>, KeyDetails)> {
     let key_details = derive_key_from_passphrase(password, None);
+    let mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
     
     data = xor_data(data, &key_details)?;
-    
     data = {
+        // Shuffle the data
         let rotated_data = rotate_data(data, false);
         mirror_data(rotated_data)
     };
+    
+    // append MAC to encrypted data
+    for byte in mac {
+        data.push(byte);
+    }
     
     Ok((data, key_details))
 }
@@ -22,12 +29,29 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<(Vec<u8>, KeyDetai
 pub fn decrypt(mut data: Vec<u8>, password: &str, salt: [u8; 16]) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, Some(salt));
     
+    // Get the MAC from last 32 bytes of encrypted data
+    let stored_mac = data.split_off(data.len() - 32);
+    
     data = {
         let mirrored_data = mirror_data(data);
         rotate_data(mirrored_data, true)
     };
+    data = xor_data(data, &key_details)?;
     
-    xor_data(data, &key_details)
+    // recalculate the MAC to verify both are correct. 
+    let new_mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
+    
+    // Check if both MAC's are the same
+    for i in 0..32 {
+        if stored_mac[i] != new_mac[i] {
+            return Err(std::io::Error::new(
+                ErrorKind::InvalidData,
+                "Authentication process failed"
+            ));
+        }
+    }
+    
+    Ok(data)
 }
 
 
