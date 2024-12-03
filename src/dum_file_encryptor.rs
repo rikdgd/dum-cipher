@@ -42,7 +42,7 @@ impl<'a> DumFileEncryptor<'a> {
         Ok(())
     }
     
-    pub fn get_file_bytes(&self) -> IoResult<Vec<u8>> {
+    fn get_file_bytes(&self) -> IoResult<Vec<u8>> {
         let mut content_buffer = Vec::new();
         let mut file = OpenOptions::new()
             .read(true)
