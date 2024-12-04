@@ -121,7 +121,7 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     Ok(new_data)
 }
 
-fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
+pub fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
     let mut rotated_data_buffer: Vec<u8> = Vec::new();
     for chunk in data.chunks(ROTATE_CHUNK_SIZE) {
         if chunk.len() == ROTATE_CHUNK_SIZE {
@@ -148,7 +148,7 @@ fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
     rotated_data_buffer
 }
 
-fn mirror_data(data: Vec<u8>) -> Vec<u8> {
+pub fn mirror_data(data: Vec<u8>) -> Vec<u8> {
     let mut mirrored_data: Vec<u8> = Vec::new();
     for chunk in data.chunks(MIRROR_CHUNK_SIZE) {
         if chunk.len() == MIRROR_CHUNK_SIZE {
