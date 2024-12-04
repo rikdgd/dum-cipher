@@ -26,7 +26,7 @@ impl<'a> DumFileEncryptor<'a> {
     
     pub fn encrypt_file(&self, password: &str) -> IoResult<()> {
         let file_bytes = self.get_file_bytes()?;
-        let ciphertext = dum_encryption::encrypt(file_bytes, password)?;
+        let ciphertext = dum_encryption::encrypt(file_bytes, password, None)?;
         
         self.write_bytes_to_file(&ciphertext)?;
         
@@ -35,7 +35,7 @@ impl<'a> DumFileEncryptor<'a> {
     
     pub fn decrypt_file(&self, password: &str) -> IoResult<()> {
         let file_bytes = self.get_file_bytes()?;
-        let plaintext = dum_encryption::decrypt(file_bytes, password)?;
+        let plaintext = dum_encryption::decrypt(file_bytes, password, None)?;
 
         self.write_bytes_to_file(&plaintext)?;
 

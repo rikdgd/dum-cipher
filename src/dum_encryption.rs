@@ -1,40 +1,75 @@
 use std::io::{ErrorKind, Result as IoResult};
 use crate::key_generation::{derive_key_from_passphrase, KeyDetails};
 use crate::authentication;
-
+use crate::encryption_options::EncryptionOptions;
 
 const ROTATE_CHUNK_SIZE: usize = 25;    // 5x5 matrix
 const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 
-pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
-    let key_details = derive_key_from_passphrase(password, None);
-    let mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
+pub fn encrypt(mut data: Vec<u8>, password: &str, options: Option<EncryptionOptions>) -> IoResult<Vec<u8>> {
+    let options = options.unwrap_or(EncryptionOptions {
+        separate_chunks: false,
+        use_hmac: true,
+        xor_data: true,
+        shuffle_data: true,
+    });
     
-    data = xor_data(data, &key_details)?;
-    data = {
-        // Shuffle the data
-        let rotated_data = rotate_data(data, false);
-        mirror_data(rotated_data)
+    let key_details = derive_key_from_passphrase(password, None);
+    let hmac = match options.use_hmac {
+        true => Some(authentication::generate_hmac(&data, &key_details.key).unwrap()),
+        false => None,
     };
+    
+    if options.xor_data {
+        data = xor_data(data, &key_details)?;
+    }
+    if options.shuffle_data {
+        data = {
+            // Shuffle the data
+            let rotated_data = rotate_data(data, false);
+            mirror_data(rotated_data)
+        };
+    }
+
+    if options.separate_chunks {
+        let mut message = b"\nsalt:\n".to_vec();
+        data.append(&mut message);
+    }
     
     // append salt to encrypted data
     for byte in key_details.salt {
         data.push(byte);
     }
     
-    // append HMAC to encrypted data
-    for byte in mac {
-        data.push(byte);
+    if let Some(hmac) = hmac {
+        if options.separate_chunks {
+            let mut message = b"\nHMAC:\n".to_vec();
+            data.append(&mut message);
+        }
+
+        // append HMAC to encrypted data
+        for byte in hmac {
+            data.push(byte);
+        }
     }
     
     Ok(data)
 }
 
-pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
+pub fn decrypt(mut data: Vec<u8>, password: &str, options: Option<EncryptionOptions>) -> IoResult<Vec<u8>> {
+    let options = options.unwrap_or(EncryptionOptions {
+        separate_chunks: false,
+        use_hmac: true,
+        xor_data: true,
+        shuffle_data: true,
+    });
     
     // Get the HMAC from last 32 bytes of encrypted data
-    let stored_mac = data.split_off(data.len() - 32);
+    let stored_mac = match options.use_hmac {
+        true => Some(data.split_off(data.len() - 32)),
+        false => None,
+    };
     
     // Get salt from last 16 bytes
     let salt_vec = data.split_off(data.len() - 16);
@@ -52,16 +87,19 @@ pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     };
     data = xor_data(data, &key_details)?;
     
-    // recalculate the HMAC to verify both are correct. 
-    let new_mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
-    
-    // Check if both HMACs are the same
-    for i in 0..32 {
-        if stored_mac[i] != new_mac[i] {
-            return Err(std::io::Error::new(
-                ErrorKind::InvalidData,
-                "Authentication process failed"
-            ));
+    if options.use_hmac {
+        // recalculate the HMAC to verify both are correct. 
+        let new_mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
+        let stored_mac = stored_mac.expect("No HMAC was stored even though options said it was.");
+
+        // Check if both HMACs are the same
+        for i in 0..32 {
+            if stored_mac[i] != new_mac[i] {
+                return Err(std::io::Error::new(
+                    ErrorKind::InvalidData,
+                    "Authentication process failed"
+                ));
+            }
         }
     }
     
@@ -283,8 +321,8 @@ mod test {
         let input = b"Lorem ipsum dolor sit amet, consectetur adipiscing".to_vec();
         let password = String::from("password123");
 
-        let encrypted = dum_encryption::encrypt(input.clone(), &password).unwrap();
-        let decrypted = dum_encryption::decrypt(encrypted.clone(), &password).unwrap();
+        let encrypted = dum_encryption::encrypt(input.clone(), &password, None).unwrap();
+        let decrypted = dum_encryption::decrypt(encrypted.clone(), &password, None).unwrap();
 
         assert_eq!(input, decrypted);
     }

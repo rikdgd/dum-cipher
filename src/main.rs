@@ -2,6 +2,7 @@ mod dum_encryption;
 mod key_generation;
 mod dum_file_encryptor;
 mod authentication;
+mod encryption_options;
 
 use std::env;
 use std::path::Path;
