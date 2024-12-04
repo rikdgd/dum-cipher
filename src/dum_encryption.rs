@@ -9,7 +9,7 @@ const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, None);
-    let mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
+    let mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
     
     data = xor_data(data, &key_details)?;
     data = {
@@ -23,7 +23,7 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
         data.push(byte);
     }
     
-    // append MAC to encrypted data
+    // append HMAC to encrypted data
     for byte in mac {
         data.push(byte);
     }
@@ -33,7 +33,7 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
 
 pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     
-    // Get the MAC from last 32 bytes of encrypted data
+    // Get the HMAC from last 32 bytes of encrypted data
     let stored_mac = data.split_off(data.len() - 32);
     
     // Get salt from last 16 bytes
@@ -52,10 +52,10 @@ pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     };
     data = xor_data(data, &key_details)?;
     
-    // recalculate the MAC to verify both are correct. 
-    let new_mac = authentication::generate_MAC(&data, &key_details.key).unwrap();
+    // recalculate the HMAC to verify both are correct. 
+    let new_mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
     
-    // Check if both MACs are the same
+    // Check if both HMACs are the same
     for i in 0..32 {
         if stored_mac[i] != new_mac[i] {
             return Err(std::io::Error::new(
