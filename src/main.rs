@@ -21,7 +21,7 @@ fn main() -> std::io::Result<()> {
     let file_path = Path::new(&args[2]);
     let password = String::from(&args[3]);
     
-    let encryptor = dum_file_encryptor::DumFileEncryptor::new(file_path)?;
+    let encryptor = dum_file_encryptor::DumFileEncryptor::new(file_path, true)?;
     match action {
         "encrypt" => encryptor.encrypt_file(&password)?,
         "decrypt" => encryptor.decrypt_file(&password)?,

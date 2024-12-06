@@ -8,6 +8,7 @@ const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 
 
 pub fn encrypt(mut data: Vec<u8>, password: &str, options: Option<EncryptionOptions>) -> IoResult<Vec<u8>> {
+    println!("Bytes to encrypt: {}", data.len());
     let options = options.unwrap_or(EncryptionOptions {
         separate_chunks: false,
         use_hmac: true,
@@ -58,6 +59,7 @@ pub fn encrypt(mut data: Vec<u8>, password: &str, options: Option<EncryptionOpti
 }
 
 pub fn decrypt(mut data: Vec<u8>, password: &str, options: Option<EncryptionOptions>) -> IoResult<Vec<u8>> {
+    println!("Bytes to decrypt: {}", data.len());
     let options = options.unwrap_or(EncryptionOptions {
         separate_chunks: false,
         use_hmac: true,
