@@ -11,6 +11,11 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, None);
     let mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
     
+    // append HMAC to plaintext
+    for byte in mac {
+        data.push(byte);
+    }
+    
     data = xor_data(data, &key_details)?;
     data = {
         // Shuffle the data
@@ -23,28 +28,17 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
         data.push(byte);
     }
     
-    // append HMAC to encrypted data
-    for byte in mac {
-        data.push(byte);
-    }
-    
     Ok(data)
 }
 
 pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
-    
-    // Get the HMAC from last 32 bytes of encrypted data
-    let stored_mac = data.split_off(data.len() - 32);
-    
     // Get salt from last 16 bytes
     let salt_vec = data.split_off(data.len() - 16);
     let mut salt = [0u8; 16];
     for (i, byte) in salt_vec.iter().enumerate() {
         salt[i] = byte.clone();
     }
-
     let key_details = derive_key_from_passphrase(password, Some(salt));
-    
     
     data = {
         let mirrored_data = mirror_data(data);
@@ -52,6 +46,7 @@ pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     };
     data = xor_data(data, &key_details)?;
     
+    let stored_mac = data.split_off(data.len() - 32);
     // recalculate the HMAC to verify both are correct. 
     let new_mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
     
