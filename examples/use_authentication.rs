@@ -17,7 +17,7 @@ fn main() {
     
     
     // Slightly adjust ciphertext and try to decrypt:
-    // ciphertext[10] = ciphertext[10] + 1;         // === UN-COMMENT ME ===
+    ciphertext[10] = ciphertext[10] + 1;         // === UN-COMMENT ME ===
     
     let plaintext = dum_encryption::decrypt(ciphertext, &pass, Some(options))
         .expect("data decryption failed");
