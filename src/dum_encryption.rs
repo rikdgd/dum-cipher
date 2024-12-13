@@ -1,4 +1,5 @@
 use std::io::{ErrorKind, Result as IoResult};
+use rand::Rng;
 use crate::key_generation::{derive_key_from_passphrase, KeyDetails};
 use crate::authentication;
 
@@ -79,30 +80,63 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
 }
 
 fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
+    let init_vec = generate_rotate_init_vector(); // TODO: get from file on decryption
     let mut rotated_data_buffer: Vec<u8> = Vec::new();
-    for chunk in data.chunks(ROTATE_CHUNK_SIZE) {
+
+    // On the first chunk, there is no previous chunk, this is the role of the init vector.
+    // We still need the original init vector to, so we store it separately.
+    let mut previous_chunk = init_vec;
+    
+    let data_chunks: Box<dyn Iterator<Item = &[u8]>> = if !reverse {
+        // On encryption, loop over chunks from front to back.
+        Box::new(data.chunks(ROTATE_CHUNK_SIZE))
+    } else {
+        // On decryption, loop over chunks from back to front.
+        Box::new(data.chunks(ROTATE_CHUNK_SIZE).rev())
+    };
+
+    for (i, chunk) in data_chunks.enumerate() {
         if chunk.len() == ROTATE_CHUNK_SIZE {
             let chunk: [u8; ROTATE_CHUNK_SIZE] = match chunk.try_into() {
                 Ok(arr) => arr,
                 Err(_) => panic!("Slice does not have the right amount of elements: {ROTATE_CHUNK_SIZE}"),
             };
-
-            if !reverse {
-                if let Some(rotated_data) = rotate_chunk(chunk.into()) {
-                    rotated_data_buffer.append(&mut rotated_data.to_vec())
-                }
-            } else {
-                if let Some(rotated_data) = reverse_rotate_chunk(chunk.into()) {
-                    rotated_data_buffer.append(&mut rotated_data.to_vec())
-                }
-            }
+            
+            // Rotate and XOR the chunk
+            let rotated_chunk = if !reverse { // encryption
+                let chunk = xor_rotate_chunks(chunk, previous_chunk);
+                rotate_chunk(chunk).unwrap_or(chunk)
+            } else { // decryption
+                reverse_rotate_chunk(chunk).unwrap_or(chunk)
+                // TODO: XOR with next chunk
+            };
+            
+            previous_chunk = rotated_chunk;
+            rotated_data_buffer.append(&mut rotated_chunk.to_vec());
 
         } else {
             rotated_data_buffer.append(&mut chunk.to_vec());
         }
     }
-    
+    // TODO: rotate the 'rotated_data_buffer' when decrypting
     rotated_data_buffer
+}
+
+fn generate_rotate_init_vector() -> [u8; ROTATE_CHUNK_SIZE] {
+    let mut buffer = [0u8; ROTATE_CHUNK_SIZE];
+    rand::thread_rng().fill(&mut buffer);
+    buffer
+}
+
+fn xor_rotate_chunks(chunk_a: [u8; ROTATE_CHUNK_SIZE], chunk_b: [u8; ROTATE_CHUNK_SIZE]) -> [u8; ROTATE_CHUNK_SIZE] {
+    let mut result_chunk = [0u8; ROTATE_CHUNK_SIZE];
+    
+    for i in 0..ROTATE_CHUNK_SIZE {
+        let (byte_a, byte_b) = (chunk_a[i], chunk_b[i]);
+        result_chunk[i] = byte_a ^ byte_b;
+    }
+    
+    result_chunk
 }
 
 fn mirror_data(data: Vec<u8>) -> Vec<u8> {
