@@ -11,6 +11,7 @@ const MIRROR_CHUNK_SIZE: usize = 9;     // 3x3 matrix
 pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     let key_details = derive_key_from_passphrase(password, None);
     let mac = authentication::generate_hmac(&data, &key_details.key).unwrap();
+    let init_vector;
     
     // append HMAC to plaintext
     for byte in mac {
@@ -20,7 +21,8 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     data = xor_data(data, &key_details)?;
     data = {
         // Shuffle the data
-        let rotated_data = rotate_data(data, false);
+        let (rotated_data, init_vec) = rotate_data(data, None);
+        init_vector = init_vec;
         mirror_data(rotated_data)
     };
     
@@ -29,10 +31,18 @@ pub fn encrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
         data.push(byte);
     }
     
+    // append the initialisation vector
+    for byte in init_vector {
+        data.push(byte);
+    }
+    
     Ok(data)
 }
 
 pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
+    let init_vec: [u8; ROTATE_CHUNK_SIZE] = data.split_off(data.len() - ROTATE_CHUNK_SIZE)
+        .try_into().expect("The initialisation vector could not be extracted.");
+    
     // Get salt from last 16 bytes
     let salt_vec = data.split_off(data.len() - 16);
     let mut salt = [0u8; 16];
@@ -43,7 +53,8 @@ pub fn decrypt(mut data: Vec<u8>, password: &str) -> IoResult<Vec<u8>> {
     
     data = {
         let mirrored_data = mirror_data(data);
-        rotate_data(mirrored_data, true)
+        let (rotated, _) = rotate_data(mirrored_data, Some(init_vec));
+        rotated
     };
     data = xor_data(data, &key_details)?;
     
@@ -79,23 +90,45 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     Ok(new_data)
 }
 
-fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
-    let init_vec = generate_rotate_init_vector(); // TODO: get from file on decryption
+/// Rotates a vector of data in chunks of 25. On encryption the chunks also get XOR-ed with the previous 
+/// chunk and vice versa. 
+/// 
+/// An initialisation vector `init_vec` is required on decryption, since it cannot be randomly generated.
+/// This initialisation vector is **NOT** a secret and can safely be stored in files.
+/// 
+/// Whether this function encrypts or decrypts is dependent on of an `init_vec` is passed or left `None`.
+/// It wel encrypt when left at `None`.
+/// <br>
+/// ## parameters:
+/// * `data` - The vector containing all the data that should be encrypted, and thus rotated.
+/// * `init_vec` - When decrypting this is required, will automatically determine whether to encrypt/decrypt.
+/// 
+/// ## returns:
+/// `(Vec<u8>, [u8; 25])` resembling: `('rotated data', 'initialisation vector')` where the 'initialisation vector'
+/// will be the same as the one passed when decrypting. 
+fn rotate_data(data: Vec<u8>, init_vec: Option<[u8; 25]>) -> (Vec<u8>, [u8; 25]) {
+    let mut reverse = false;
+    let init_vec = init_vec.unwrap_or_else(|| {
+        // When we get an initialisation passed, this means we are decrypting.
+        reverse = true;
+        generate_rotate_init_vector()
+    });
+    
     let mut rotated_data_buffer: Vec<u8> = Vec::new();
 
     // On the first chunk, there is no previous chunk, this is the role of the init vector.
     // We still need the original init vector to, so we store it separately.
     let mut previous_chunk = init_vec;
     
-    let data_chunks: Box<dyn Iterator<Item = &[u8]>> = if !reverse {
+    let mut data_chunks = if !reverse {
         // On encryption, loop over chunks from front to back.
-        Box::new(data.chunks(ROTATE_CHUNK_SIZE))
+        Box::new(data.chunks(ROTATE_CHUNK_SIZE)) as Box<dyn Iterator<Item = &[u8]>>
     } else {
         // On decryption, loop over chunks from back to front.
-        Box::new(data.chunks(ROTATE_CHUNK_SIZE).rev())
-    };
+        Box::new(data.chunks(ROTATE_CHUNK_SIZE).rev()) as Box<dyn Iterator<Item = &[u8]>>
+    }.peekable();
 
-    for (i, chunk) in data_chunks.enumerate() {
+    while let Some(chunk) = data_chunks.next() {
         if chunk.len() == ROTATE_CHUNK_SIZE {
             let chunk: [u8; ROTATE_CHUNK_SIZE] = match chunk.try_into() {
                 Ok(arr) => arr,
@@ -106,9 +139,18 @@ fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
             let rotated_chunk = if !reverse { // encryption
                 let chunk = xor_rotate_chunks(chunk, previous_chunk);
                 rotate_chunk(chunk).unwrap_or(chunk)
+                
             } else { // decryption
-                reverse_rotate_chunk(chunk).unwrap_or(chunk)
-                // TODO: XOR with next chunk
+                let mut transformed_chunk = reverse_rotate_chunk(chunk).unwrap_or(chunk);
+                if let Some(next_chunk) = data_chunks.peek() {
+                    if next_chunk.len() == ROTATE_CHUNK_SIZE {
+                        let next_chunk: [u8; ROTATE_CHUNK_SIZE] = (*next_chunk).try_into()
+                            .expect("Slice does not have the right amount of elements.");
+                        
+                        transformed_chunk = xor_rotate_chunks(transformed_chunk, next_chunk);
+                    }
+                }
+                transformed_chunk
             };
             
             previous_chunk = rotated_chunk;
@@ -118,8 +160,12 @@ fn rotate_data(data: Vec<u8>, reverse: bool) -> Vec<u8> {
             rotated_data_buffer.append(&mut chunk.to_vec());
         }
     }
-    // TODO: rotate the 'rotated_data_buffer' when decrypting
-    rotated_data_buffer
+    
+    if reverse {
+        rotated_data_buffer.reverse();
+    }
+    
+    (rotated_data_buffer, init_vec)
 }
 
 fn generate_rotate_init_vector() -> [u8; ROTATE_CHUNK_SIZE] {
