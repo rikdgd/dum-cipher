@@ -90,10 +90,10 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
     Ok(new_data)
 }
 
-/// Rotates a vector of data in chunks of 25. On encryption the chunks also get XOR-ed with the previous 
+/// Rotates a vector of data in chunks of 25 bytes. On encryption the chunks also get XOR-ed with the previous 
 /// chunk and vice versa. 
 /// 
-/// An initialisation vector `init_vec` is required on decryption, since it cannot be randomly generated.
+/// An initialisation vector `init_vec` is required on decryption, since it cannot be randomly generated in this case.
 /// This initialisation vector is **NOT** a secret and can safely be stored in files.
 /// 
 /// Whether this function encrypts or decrypts is dependent on of an `init_vec` is passed or left `None`.
@@ -107,10 +107,10 @@ fn xor_data(data: Vec<u8>, key_details: &KeyDetails) -> IoResult<Vec<u8>> {
 /// `(Vec<u8>, [u8; 25])` resembling: `('rotated data', 'initialisation vector')` where the 'initialisation vector'
 /// will be the same as the one passed when decrypting. 
 fn rotate_data(data: Vec<u8>, init_vec: Option<[u8; 25]>) -> (Vec<u8>, [u8; 25]) {
-    let mut reverse = false;
+    let mut reverse = true;
     let init_vec = init_vec.unwrap_or_else(|| {
-        // When we get an initialisation passed, this means we are decrypting.
-        reverse = true;
+        // When we don't get an initialisation vector passed, this means we are encrypting.
+        reverse = false;
         generate_rotate_init_vector()
     });
     
